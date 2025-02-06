@@ -112,10 +112,64 @@ DOCKER_OPTS="--registry-mirror=https://registry.docker-cn.com"
 
 ### 离线安装Docker
 
-rpm安装
+#### rpm安装
 
 ```
 rpm -ivh *.rpm
+```
+
+#### 压缩包安装
+
+[下载安装包](https://download.docker.com/linux/static/stable/x86_64/)
+
+```
+tar -zxvf docker-20.10.16.tgz
+cp -p docker/* /usr/bin
+```
+
+注册为系统服务
+
+```
+vim /usr/lib/systemd/system/docker.service
+```
+
+```
+[Unit]
+Description=Docker Application Container Engine
+Documentation=http://docs.docker.com
+After=network.target docker.socket
+[Service]
+Type=notify
+EnvironmentFile=-/run/flannel/docker
+WorkingDirectory=/usr/local/bin
+ExecStart=/usr/bin/dockerd \
+                -H tcp://0.0.0.0:4243 \
+                -H unix:///var/run/docker.sock \
+                --selinux-enabled=false \
+                --log-opt max-size=1g
+ExecReload=/bin/kill -s HUP $MAINPID
+# Having non-zero Limit*s causes performance problems due to accounting overhead
+# in the kernel. We recommend using cgroups to do container-local accounting.
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+# Uncomment TasksMax if your systemd version supports it.
+# Only systemd 226 and above support this version.
+#TasksMax=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+# kill only the docker process, not all processes in the cgroup
+KillMode=process
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+```
+
+设置开机启动
+
+```
+systemctl enable docker
 ```
 
 ## 常用命令
@@ -204,6 +258,7 @@ run参数：
 --name  指定容器名称    如果没有指定，将生成随机名称
 --network   指定容器网络
 --restart=always   开机自启
+--entrypoint "tail /dev/null"
 ```
 
 ##### 使用Dockerfile创建镜像
@@ -249,10 +304,74 @@ docker image prune
 docker images -f dangling=true
 ```
 
+##### 通过shell脚本批量删除镜像
+
+delete_docker_images.sh
+
+```shell
+#!/bin/bash
+
+# 检查是否提供了镜像ID文件
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <image_ids_file>"
+    exit 1
+fi
+
+IMAGE_IDS_FILE=$1
+
+# 检查镜像ID文件是否存在
+if [ ! -f "$IMAGE_IDS_FILE" ]; then
+    echo "Error: File '$IMAGE_IDS_FILE' not found!"
+    exit 1
+fi
+
+# 逐行读取镜像ID并删除镜像
+while IFS= read -r IMAGE_ID; do
+    if [ -n "$IMAGE_ID" ]; then
+        echo "Deleting image: $IMAGE_ID"
+        docker rmi -f "$IMAGE_ID"
+        if [ $? -eq 0 ]; then
+            echo "Successfully deleted image: $IMAGE_ID"
+        else
+            echo "Failed to delete image: $IMAGE_ID"
+        fi
+    fi
+done < "$IMAGE_IDS_FILE"
+
+echo "Image deletion process completed."
+```
+
+image_ids.txt
+
+```txt
+image_id_1
+image_id_2
+image_id_3
+```
+
+获取想要删除的镜像id
+
+```
+docker images|grep fs-ecd|grep wps|awk '{print $3}'
+```
+
+执行
+
+```
+chmod +x delete_docker_images.sh
+./delete_docker_images.sh image_ids.txt
+```
+
 ##### 获取镜像具体创建时间
 
 ```
 docker inspect --format='{{.Created}}' <image_name_or_id>
+```
+
+##### 获取镜像entrypoint
+
+```
+docker inspect -f {{.Config.Entrypoint}} <image_name_or_id>
 ```
 
 #### 容器相关命令
@@ -463,6 +582,7 @@ services:
     container_name: fs-usercenter    // 容器名称
     privileged: true                 // 给容器root权限
     restart: always                  // 自动重启
+    entrypoint: "tail -f /dev/null"        // 指定entrypoint，可覆盖原镜像的entrypoint
     volumes:                         // 卷映射，持久化数据
       - ./data/config:/work/fs-usercenter/config
       - ./data/logs:/work/fs-usercenter/logs
@@ -578,59 +698,11 @@ docker-compose up -d <service_name>
 
 ### 设置代理
 
-## Docker离线安装
+![image-20240612134323873](./Docker.assets/image-20240612134323873.png)
 
-[下载安装包](https://download.docker.com/linux/static/stable/x86_64/)
+### 信任私有仓库
 
-```
-tar -zxvf docker-20.10.16.tgz
-cp -p docker/* /usr/bin
-```
-
-注册为系统服务
-
-```
-vim /usr/lib/systemd/system/docker.service
-```
-
-```
-[Unit]
-Description=Docker Application Container Engine
-Documentation=http://docs.docker.com
-After=network.target docker.socket
-[Service]
-Type=notify
-EnvironmentFile=-/run/flannel/docker
-WorkingDirectory=/usr/local/bin
-ExecStart=/usr/bin/dockerd \
-                -H tcp://0.0.0.0:4243 \
-                -H unix:///var/run/docker.sock \
-                --selinux-enabled=false \
-                --log-opt max-size=1g
-ExecReload=/bin/kill -s HUP $MAINPID
-# Having non-zero Limit*s causes performance problems due to accounting overhead
-# in the kernel. We recommend using cgroups to do container-local accounting.
-LimitNOFILE=infinity
-LimitNPROC=infinity
-LimitCORE=infinity
-# Uncomment TasksMax if your systemd version supports it.
-# Only systemd 226 and above support this version.
-#TasksMax=infinity
-TimeoutStartSec=0
-# set delegate yes so that systemd does not reset the cgroups of docker containers
-Delegate=yes
-# kill only the docker process, not all processes in the cgroup
-KillMode=process
-Restart=on-failure
-[Install]
-WantedBy=multi-user.target
-```
-
-设置开机启动
-
-```
-systemctl enable docker
-```
+![image-20240612134423599](./Docker.assets/image-20240612134423599.png)
 
 ## 常见问题
 
@@ -687,4 +759,9 @@ permission denied while trying to connect to the Docker daemon socket at unix://
          - '127.0.0.1:50000:5000'
    ```
 
-4. 
+### docker-compose.yml中特殊字符转义
+
+```
+$需要写成$$来转义
+```
+

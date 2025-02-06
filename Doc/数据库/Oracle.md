@@ -65,8 +65,8 @@ alter user 用户名 identified by 新密码;
 创建用户
 
 ```sql
-create user fschat_tmp identified by Fschat123;
-grant connect,resource to fschat_tmp;
+create user test identified by test;
+grant connect,resource to test;
 ```
 
 
@@ -77,6 +77,7 @@ grant connect,resource to fschat_tmp;
 grant select on sys_dept to qyyp;
 
 create view sys_user as select * from fschat.sys_user;
+create view sys_dept as select * from fschat.sys_dept;
 ```
 
 
@@ -104,3 +105,25 @@ imp导入
 imp JNPFINIT/JNPFINIT fromuser=JNPFINIT touser=JNPFINIT rows=y indexes=y commit=y buffer=50000000 ignore=n file=/home/oracle/exp_JNPFINIT.dmp log=/home/oracle/exp_JNPFINIT.log
 ```
 
+
+
+查询当前用户表空间
+
+```
+SELECT USERNAME, DEFAULT_TABLESPACE FROM DBA_USERS WHERE USERNAME = USER;
+SELECT USERNAME, DEFAULT_TABLESPACE FROM USER_USERS;
+```
+
+
+
+查询oracle版本
+
+```
+SELECT * FROM v$version;
+```
+
+
+
+查找所有drop table
+
+(DROP\s+TABLE\s+[^;]*);

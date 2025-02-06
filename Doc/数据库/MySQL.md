@@ -115,6 +115,110 @@ grant select on sys_dept to qyyp;
 create view sys_user as select * from fschat.sys_user;
 ```
 
+## 清除注释
+
+### 清除表注释
+
+```
+SELECT
+	concat(
+		'alter table ',
+		table_schema,
+		'.',
+		table_name,
+		' comment ''',
+		''';'
+	) s
+FROM
+	information_schema. COLUMNS
+WHERE
+	table_schema = '数据库名称'
+GROUP BY
+	TABLE_NAME;
+
+```
+
+### 清除字段注释
+
+```
+SELECT
+	concat(
+		'alter table ',
+		table_schema,
+		'.',
+		table_name,
+		' modify column ',
+		column_name,
+		' ',
+		column_type,
+		' ',
+
+	IF (
+		is_nullable = 'YES',
+
+	IF (
+		data_type IN ('timestamp'),
+		' null ',
+		' '
+	),
+	'not null '
+	),
+
+IF (
+	column_default IS NULL,
+	'',
+
+IF (
+	data_type IN ('char', 'varchar')
+	OR data_type IN ('date', 'datetime')
+	AND column_default != 'CURRENT_TIMESTAMP',
+	concat(
+	' default ''',
+		column_default,
+		''''
+	),
+	concat(
+		' default ',
+
+	IF (
+		column_default = '',
+		'''''',
+		column_default
+	)
+	)
+)
+),
+
+IF (
+	extra IS NULL
+	OR extra = '',
+	'',
+	concat(' ', extra)
+),
+ ' comment ''',
+ ''';'
+	) s
+FROM
+	information_schema. COLUMNS
+WHERE
+	table_schema = '数据库名称';
+
+```
+
+```
+删除 DEFAULT_GENERATED
+反引号 `RANK` rank为关键字
+`constraint`
+```
+
+
+
+## 查询所有数据库连接
+
+```
+show processlist;
+```
+
 ## 问题解决记录
 
 MySQL 连接出现 Authentication plugin 'caching_sha2_password' cannot be loaded
@@ -136,3 +240,35 @@ ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY '123456';
 '%'为caching_sha2_password的host，通过查询得出
 
 '123456'为新密码
+
+
+
+```
+create user 'ai_chat'@'%' IDENTIFIED by 'xxAI0826j';
+grant all on ai_chat.* to 'ai_chat'@'%';
+
+
+create user 'llm'@'%' IDENTIFIED by 'llm0826|lang';
+grant all on llm.* to 'llm'@'%';
+
+
+grant select on ai_chat.ai_session_log to llm;
+grant select on ai_chat.ai_qa_pairs to llm;
+```
+
+## 获取数据库所有非空表
+
+```
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'fschat'  -- 替换为你的数据库名称
+  AND table_type = 'BASE TABLE'
+  AND table_name NOT IN (
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'fschat'
+      AND table_type = 'BASE TABLE'
+      AND table_rows = 0
+  );
+```
+
