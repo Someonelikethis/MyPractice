@@ -765,3 +765,8 @@ permission denied while trying to connect to the Docker daemon socket at unix://
 $需要写成$$来转义
 ```
 
+### 容器日志
+
+```
+/var/lib/docker/containers/{containers_id}
+```
